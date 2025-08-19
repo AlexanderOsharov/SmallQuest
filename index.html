@@ -1,0 +1,1260 @@
+﻿<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Квест — Оно смотрит</title>
+  <style>
+    :root {
+      --accent: #0fd07f;
+      --danger: #b60b0b;
+      --bg: #050505;
+      --muted: #9b9b9b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    html, body {
+      height: 100%;
+      background: linear-gradient(#0a0a0a,#040404);
+      color: #eee;
+      font-family: system-ui,Segoe UI,Roboto,Arial,sans-serif;
+      overflow: hidden
+    }
+    /* --- common layout --- */
+    #stage {
+      position: relative;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5
+    }
+    /* --- kitty (first stage) --- */
+    #kittyContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      background: #fffef6;
+      padding: 28px;
+      border-radius: 16px;
+      box-shadow: 0 18px 80px rgba(0,0,0,0.6);
+      cursor: pointer
+    }
+
+      #kittyContainer img {
+        width: 170px;
+        height: 170px;
+        border-radius: 50%;
+        object-fit: cover
+      }
+
+    #kittyTitle {
+      font-weight: 700;
+      color: #333;
+      font-size: 20px
+    }
+
+    #kittyHint {
+      color: #666;
+      font-size: 13px
+    }
+
+    /* --- horror layer (hidden until activated) --- */
+    #horrorWrap {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 1000;
+      pointer-events: none
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%
+    }
+
+    #monsterCanvas, #metaCanvas, #bloodCanvas, #smearCanvas, #fxCanvas, #noiseCanvas {
+      position: absolute;
+      inset: 0
+    }
+    /* small cursor-circle (restored) */
+    #cursorSpot {
+      position: fixed;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #0f0;
+      border-radius: 50%;
+      background: rgba(0,255,0,0.15);
+      transform: translate(-50%,-50%);
+      pointer-events: none;
+      z-index: 11000;
+      mix-blend-mode: screen;
+      box-shadow: 0 0 10px #0f0;
+      display: none
+    }
+
+    /* overlays */
+    #flash {
+      position: fixed;
+      inset: 0;
+      background: #fff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 10020;
+      transition: opacity .12s
+    }
+
+    #black {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 10005;
+      transition: opacity .6s
+    }
+
+    #scanlines {
+      position: fixed;
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 10010;
+      background: linear-gradient(rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.28) 50%);
+      background-size: 100% 3px;
+      mix-blend-mode: multiply;
+      transition: opacity .3s
+    }
+
+    #crack {
+      position: fixed;
+      inset: 0;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: cover;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 10015;
+      transition: opacity .25s;
+      filter: drop-shadow(0 0 14px rgba(255,0,0,0.35))
+    }
+
+    #handOverlay {
+      position: fixed;
+      right: -40%;
+      top: -20%;
+      width: 60%;
+      height: 80%;
+      z-index: 10018;
+      opacity: 0;
+      pointer-events: none;
+      transition: transform .28s ease, opacity .28s ease
+    }
+
+    /* messages UI */
+    #uiLayer {
+      position: fixed;
+      inset: 0;
+      z-index: 10012;
+      pointer-events: none
+    }
+
+    .msg {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--danger);
+      font-family: Impact, 'Arial Black';
+      font-weight: 900;
+      text-align: center;
+      pointer-events: none;
+      letter-spacing: 3px
+    }
+
+    #bloodTip {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #9a9a9a;
+      font-size: 13px;
+      z-index: 60
+    }
+
+    /* panels / puzzles (interactive, pointer-events enabled when open) */
+    .panel {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%);
+      z-index: 11050;
+      width: min(920px,94vw);
+      max-width: 94vw;
+      padding: 18px;
+      border-radius: 12px;
+      background: rgba(6,6,6,0.98);
+      border: 1px solid rgba(255,255,255,0.04);
+      display: none;
+      color: #ddd;
+      box-shadow: 0 28px 120px rgba(0,0,0,0.9);
+      pointer-events: auto
+    }
+
+      .panel h3 {
+        margin-bottom: 10px;
+        color: var(--accent)
+      }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center
+    }
+
+    #morseInput {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #0b0b0b;
+      color: #eee
+    }
+
+    #puzzleBoard {
+      width: 100%;
+      height: 420px;
+      background: #070707;
+      border-radius: 8px;
+      display: grid;
+      grid-template-columns: repeat(5,1fr);
+      grid-auto-rows: 1fr;
+      gap: 6px;
+      padding: 6px
+    }
+
+    .tile {
+      background: #111;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      overflow: hidden
+    }
+
+      .tile canvas {
+        width: 100%;
+        height: 100%;
+        display: block
+      }
+
+    #finalDisplay {
+      height: 46px;
+      background: #0b0b0b;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    #keypad {
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 8px;
+      margin-top: 10px
+    }
+
+    .key {
+      background: #222;
+      border-radius: 8px;
+      padding: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none
+    }
+
+    .smallBtn {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      cursor: pointer;
+      color: #000;
+      font-weight: 700
+    }
+
+    /* QR escape */
+    #qrWrap {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%);
+      z-index: 11060;
+      opacity: 0;
+      pointer-events: none;
+      border: 4px solid var(--danger);
+      width: 240px;
+      height: 240px;
+      border-radius: 12px;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 60px rgba(160,0,0,0.6)
+    }
+
+      #qrWrap img {
+        width: 86%;
+        height: 86%;
+        object-fit: contain
+      }
+
+    /* help button */
+    #helpButton {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #000;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 12000;
+      box-shadow: 0 0 10px rgba(15, 208, 127, 0.5);
+      border: none;
+    }
+
+    /* help modal */
+    #helpModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 13000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .helpContent {
+      background: #0f0f0f;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 30px rgba(15, 208, 127, 0.3);
+    }
+
+      .helpContent h3 {
+        color: var(--accent);
+        margin-bottom: 15px;
+        text-align: center;
+      }
+
+      .helpContent p {
+        margin: 10px 0;
+        line-height: 1.5;
+      }
+
+      .helpContent code {
+        background: #222;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+      }
+
+    .closeHelp {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    @keyframes shakeScreen {
+      0% {
+        transform: none
+      }
+
+      10% {
+        transform: translateX(-10px) rotate(-0.4deg)
+      }
+
+      30% {
+        transform: translateX(10px) rotate(0.6deg)
+      }
+
+      50% {
+        transform: translateX(-10px)
+      }
+
+      70% {
+        transform: translateX(10px)
+      }
+
+      100% {
+        transform: none
+      }
+    }
+
+    @keyframes pulse {
+      0%,100% {
+        transform: scale(1)
+      }
+
+      50% {
+        transform: scale(1.03)
+      }
+    }
+
+    @media (max-width:700px) {
+      .panel {
+        width: 94vw
+      }
+
+      #puzzleBoard {
+        height: 320px
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- initial 'innocent' stage -->
+  <div id="stage">
+    <div id="kittyContainer" title="Кликни, чтобы начать">
+      <img id="kittyImg" src="images/kitty.png" alt="Котёнок" />
+      <div id="kittyTitle">Погладь меня… я одинок ❤️</div>
+      <div id="kittyHint">Коснись или кликни</div>
+    </div>
+  </div>
+
+  <!-- horror canvases -->
+  <div id="horrorWrap" aria-hidden="true">
+    <canvas id="monsterCanvas"></canvas>
+    <canvas id="metaCanvas" style="display:none"></canvas>
+    <canvas id="bloodCanvas"></canvas>
+    <canvas id="smearCanvas"></canvas>
+    <canvas id="fxCanvas"></canvas>
+    <canvas id="noiseCanvas"></canvas>
+  </div>
+
+  <!-- overlays -->
+  <div id="flash"></div>
+  <div id="black"></div>
+  <div id="scanlines"></div>
+  <div id="crack"></div>
+  <div id="handOverlay"></div>
+  <div id="uiLayer"></div>
+  <div id="cursorSpot"></div>
+
+  <!-- Panels: Morse, Image puzzle (5x4 => 20 tiles), Voice, Final -->
+  <div id="panelMorse" class="panel" aria-hidden="true">
+    <h3>Пазл 1 — Морзе</h3>
+    <p>Нажми ▶, слушай послание Морзе и введи слово. Если хочешь — можешь позорно сдаться и бежать (кнопка внизу).</p>
+    <div class="row">
+      <audio id="morseAudio" src="audios/morse_beeps.mp3" controls preload="auto"></audio>
+      <button id="morsePlay" class="smallBtn">Проиграть</button>
+    </div>
+    <div style="margin-top:10px">
+      <input id="morseInput" placeholder="Введи расшифрованное слово" />
+    </div>
+    <div style="margin-top:10px" class="row">
+      <button id="morseCheck" class="smallBtn">Проверить</button>
+      <button id="morseSurrender" style="background:#a00;color:#fff;border:none;padding:10px;border-radius:8px;cursor:pointer">Позорно сдаться</button>
+    </div>
+    <div id="morseHint" style="margin-top:10px;color:#999">Подсказка: короткий / длинный сигналы</div>
+  </div>
+
+  <div id="panelPuzzle" class="panel" aria-hidden="true">
+    <h3>Пазл 2 — Собери изображение (20 кусочков)</h3>
+    <p>Перетаскивай плитки, чтобы восстановить картинку. После верной сборки появится подсказка для финала. Если хочешь — можешь позорно сдаться и бежать.</p>
+    <div id="puzzleBoard" aria-hidden="false"></div>
+    <div style="margin-top:10px" class="row">
+      <button id="puzzleCheck" class="smallBtn">Готово</button>
+      <button id="puzzleSurrender" style="background:#a00;color:#fff;border:none;padding:10px;border-radius:8px;cursor:pointer;margin-left:10px">Позорно сдаться</button>
+    </div>
+  </div>
+
+  <div id="panelVoice" class="panel" aria-hidden="true">
+    <h3>Пазл 3 — Голосовой пароль</h3>
+    <p>Произнеси фразу-пароль. Следующая подсказка: <span id="voiceHint" style="font-family:monospace;font-size:18px;">NOITCEPES</span></p>
+    <div class="row" style="margin-top:8px">
+      <button id="startListen" class="smallBtn">Начать слушать</button>
+      <button id="stopListen" class="smallBtn" disabled>Остановить</button>
+      <div id="voiceResult" style="margin-left:12px;color:#9f9">Ожидание...</div>
+    </div>
+    <div style="margin-top:10px" class="row">
+      <button id="voiceSurrender" style="background:#a00;color:#fff;border:none;padding:10px;border-radius:8px;cursor:pointer">Позорно сдаться</button>
+    </div>
+  </div>
+
+  <div id="panelFinal" class="panel" aria-hidden="true">
+    <h3>Финал — Введите 6-значный код</h3>
+    <p>Код генерируется по специальному алгоритму: escape × 10000 + 1973 + secret</p>
+    <p style="color:#aaa;font-size:14px">Подсказка: escape = 5, 1973 = 1973, secret = 1973</p>
+    <div id="finalDisplay">_ _ _ _ _ _</div>
+    <div id="keypad" style="margin-top:10px">
+      <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+      <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+      <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+      <div class="key">←</div><div class="key">0</div><div class="key">OK</div>
+    </div>
+  </div>
+
+  <!-- QR wrap -->
+  <div id="qrWrap"><img src="images/qr_placeholder.png" alt="QR"></div>
+
+  <!-- hint -->
+  <div id="bloodTip">Подсказка: QR — твой единственный выход</div>
+
+  <!-- Help button -->
+  <button id="helpButton">?</button>
+
+  <!-- Help modal -->
+  <div id="helpModal">
+    <div class="helpContent">
+      <button class="closeHelp">&times;</button>
+      <h3>Алгоритм вычисления</h3>
+      <p><strong>Пример для слова "hello":</strong></p>
+      <p>h=104, e=101, l=108, l=108, o=111</p>
+      <p>1. Перемножаем все числа: 104×101×108×108×111 = 1324848192</p>
+      <p>2. Берем остаток от деления на 1000000: 1324848192 % 1000000 = 848192</p>
+      <p>3. Результат: 848192</p>
+
+      <p><strong>Соответствие букв числам:</strong></p>
+      <p>a=97, b=98, c=99, d=100, e=101, f=102, g=103, h=104, i=105, j=106</p>
+      <p>k=107, l=108, m=109, n=110, o=111, p=112, q=113, r=114, s=115, t=116</p>
+      <p>u=117, v=118, w=119, x=120, y=121, z=122</p>
+    </div>
+  </div>
+
+  <!-- Audios (preloaded) -->
+  <audio id="womanScream" src="audios/woman_scream.mp3" preload="auto"></audio>
+  <audio id="footstepLoop" src="audios/footstep_loop.mp3" preload="auto" loop></audio>
+  <audio id="rumbleLoop" src="audios/rumble_loop.mp3" preload="auto" loop></audio>
+  <audio id="heartbeatLoop" src="audios/heartbeat_loop.mp3" preload="auto" loop></audio>
+  <audio id="finalScream" src="audios/final_scream.mp3" preload="auto"></audio>
+  <audio id="whoosh" src="audios/whoosh.mp3" preload="auto"></audio>
+
+  <script>
+    /* Упрощенная версия с 4 уровнями и возможностью "позорно пропустить" */
+    (() => {
+      // ------- Refs -------
+      const kittyContainer = document.getElementById('kittyContainer');
+      const horrorWrap = document.getElementById('horrorWrap');
+      const monsterCanvas = document.getElementById('monsterCanvas');
+      const metaCanvas = document.getElementById('metaCanvas');
+      const bloodCanvas = document.getElementById('bloodCanvas');
+      const smearCanvas = document.getElementById('smearCanvas');
+      const fxCanvas = document.getElementById('fxCanvas');
+      const noiseCanvas = document.getElementById('noiseCanvas');
+      const cursorSpot = document.getElementById('cursorSpot');
+      const flash = document.getElementById('flash');
+      const black = document.getElementById('black');
+      const scanlines = document.getElementById('scanlines');
+      const crack = document.getElementById('crack');
+      const handOverlay = document.getElementById('handOverlay');
+      const uiLayer = document.getElementById('uiLayer');
+      const qrWrap = document.getElementById('qrWrap');
+
+      // panels
+      const panelMorse = document.getElementById('panelMorse');
+      const morseAudio = document.getElementById('morseAudio');
+      const morseInput = document.getElementById('morseInput');
+      const morseCheck = document.getElementById('morseCheck');
+      const morseSurrender = document.getElementById('morseSurrender');
+
+      const panelPuzzle = document.getElementById('panelPuzzle');
+      const puzzleBoard = document.getElementById('puzzleBoard');
+      const puzzleCheck = document.getElementById('puzzleCheck');
+      const puzzleSurrender = document.getElementById('puzzleSurrender');
+
+      const panelVoice = document.getElementById('panelVoice');
+      const startListen = document.getElementById('startListen');
+      const stopListen = document.getElementById('stopListen');
+      const voiceResult = document.getElementById('voiceResult');
+      const voiceSurrender = document.getElementById('voiceSurrender');
+
+      const panelFinal = document.getElementById('panelFinal');
+      const finalDisplay = document.getElementById('finalDisplay');
+      const keypadKeys = Array.from(document.querySelectorAll('#keypad .key'));
+
+      // help elements
+      const helpButton = document.getElementById('helpButton');
+      const helpModal = document.getElementById('helpModal');
+      const closeHelp = document.querySelector('.closeHelp');
+
+      // audio
+      const womanScream = document.getElementById('womanScream');
+      const footstepLoop = document.getElementById('footstepLoop');
+      const rumbleLoop = document.getElementById('rumbleLoop');
+      const heartbeatLoop = document.getElementById('heartbeatLoop');
+      const finalScream = document.getElementById('finalScream');
+      const whoosh = document.getElementById('whoosh');
+
+      const DPR = () => window.devicePixelRatio || 1;
+      const mctx = monsterCanvas.getContext('2d', { alpha: true });
+      const metactx = metaCanvas.getContext('2d', { alpha: true });
+      const bctx = bloodCanvas.getContext('2d', { alpha: true });
+      const stx = smearCanvas.getContext('2d', { alpha: true });
+      const fctx = fxCanvas.getContext('2d', { alpha: true });
+      const nctx = noiseCanvas.getContext('2d', { alpha: true });
+
+      // ------- state -------
+      let horrorActive = false;
+      let clickCounter = 0;
+      let morseUnlocked = false;
+      let imageUnlocked = false;
+      let voiceUnlocked = false;
+      let surrendered = false;
+
+      // puzzle answers / tokens
+      const morseSecret = 'escape';       // expected Morse answer (lowercase)
+      let puzzleToken = '1973';           // this would be embedded in puzzle image in a real project; fixed here
+      let voiceToken = 'secret';          // recorded token (first 3 letters of recognized speech)
+
+      // Новый алгоритм вычисления кода по вашей методике
+      function computeFinalSecret(m = morseSecret, p = puzzleToken, v = voiceToken) {
+        // Алгоритм: escape × 10000 + 1973 + secret
+        // Но для escape и secret используем ваш способ вычисления
+
+        // Вычисляем значение escape
+        let escapeValue = 1;
+        for (let i = 0; i < m.length; i++) {
+          escapeValue *= m.charCodeAt(i);
+        }
+        escapeValue = escapeValue % 1000000;
+
+        // Вычисляем значение secret
+        let secretValue = 1;
+        for (let i = 0; i < v.length; i++) {
+          secretValue *= v.charCodeAt(i);
+        }
+        secretValue = secretValue % 1000000;
+
+        // Финальный код: escape_value * 10000 + 1973 + secret_value
+        const finalCode = (escapeValue * 10000 + parseInt(p) + secretValue) % 1000000;
+        return ('000000' + finalCode).slice(-6);
+      }
+
+      // particles pools for blood & message condensation (kept lightweight)
+      const msgParticles = [];
+      const bloodParticles = [];
+      const MAX_PARTS = 1600;
+      function ensureMsgParticles(n) {
+        while (msgParticles.length < n && (msgParticles.length + bloodParticles.length) < MAX_PARTS) {
+          msgParticles.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, vx: 0, vy: 0, tx: 0, ty: 0, r: 3 + Math.random() * 6, active: false });
+        }
+      }
+
+      // ------- canvas sizing -------
+      function fitCanvas(c) {
+        const d = DPR();
+        c.style.width = innerWidth + 'px';
+        c.style.height = innerHeight + 'px';
+        c.width = Math.max(1, Math.floor(innerWidth * d));
+        c.height = Math.max(1, Math.floor(innerHeight * d));
+        const ctx = c.getContext('2d');
+        ctx.setTransform(d, 0, 0, d, 0, 0);
+      }
+      function fitAll() {
+        [monsterCanvas, metaCanvas, bloodCanvas, smearCanvas, fxCanvas, noiseCanvas].forEach(fitCanvas);
+        drawNoise();
+        handOverlay.innerHTML = handSVG();
+      }
+      window.addEventListener('resize', fitAll);
+
+      // pointer & cursor
+      const pointer = { x: innerWidth / 2, y: innerHeight / 2, lastX: innerWidth / 2, lastY: innerHeight / 2, vx: 0, vy: 0 };
+      window.addEventListener('mousemove', e => {
+        pointer.vx = e.clientX - pointer.lastX; pointer.vy = e.clientY - pointer.lastY;
+        pointer.lastX = pointer.x; pointer.lastY = pointer.y; pointer.x = e.clientX; pointer.y = e.clientY;
+        cursorSpot.style.left = pointer.x + 'px'; cursorSpot.style.top = pointer.y + 'px';
+      });
+
+      // small helper
+      function wait(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+      // ------- initial interactions (kitty) -------
+      kittyContainer.addEventListener('click', () => {
+        clickCounter++;
+        // сразу запускаем хоррор последовательность
+        startHorrorSequence();
+      });
+
+      // ------- Horror sequence (atmospheric) -------
+      function startHorrorSequence() {
+        if (horrorActive) return;
+        horrorActive = true;
+        document.body.classList.add('horror-active');
+        document.getElementById('stage').remove();
+        horrorWrap.style.display = 'block';
+        cursorSpot.style.display = 'block';
+        fitAll();
+
+        // ambient: start rumble/heartbeat quietly
+        try { rumbleLoop.volume = 0.45; rumbleLoop.play().catch(() => { }); } catch (e) { }
+        try { heartbeatLoop.volume = 0.7; heartbeatLoop.play().catch(() => { }); } catch (e) { }
+
+        // initial light fog then dark
+        setTimeout(() => { black.style.opacity = '0.0'; black.style.transition = 'opacity 1200ms linear'; }, 100);
+        setTimeout(() => { black.style.opacity = '1'; }, 900);
+
+        // stomping & shake
+        setTimeout(() => {
+          try { footstepLoop.volume = 0.6; footstepLoop.play().catch(() => { }); } catch (e) { }
+          document.body.style.animation = 'shakeScreen 700ms';
+          setTimeout(() => document.body.style.animation = '', 900);
+        }, 1400);
+
+        // scream + eyes reveal
+        setTimeout(() => {
+          try { womanScream.currentTime = 0; womanScream.play().catch(() => { }); } catch (e) { }
+          flashNow(0.9, 120);
+          revealEyesBrief();
+        }, 2400);
+      }
+
+      function flashNow(power = 0.9, ms = 160) { flash.style.opacity = String(power); setTimeout(() => flash.style.opacity = '0', ms); }
+
+      // Eyes & fangs brief reveal
+      function revealEyesBrief() {
+        const ctx = mctx;
+        const w = innerWidth, h = innerHeight;
+        const start = performance.now();
+        const duration = 1400;
+        function anim(now) {
+          const t = now - start;
+          const alpha = Math.sin(Math.min(1, t / duration) * Math.PI);
+          // clear
+          ctx.clearRect(0, 0, w, h);
+          // dark silhouette
+          ctx.save(); ctx.globalAlpha = alpha;
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, w, h);
+          // draw two wet eyes
+          const cx = w / 2, cy = h * 0.42;
+          const eyeOffset = Math.min(90, Math.max(44, w * 0.04));
+          drawEye(ctx, cx - eyeOffset, cy, alpha);
+          drawEye(ctx, cx + eyeOffset, cy, alpha);
+          // fangs
+          drawFangs(ctx, cx, cy + 26, alpha);
+          ctx.restore();
+          if (t < duration) requestAnimationFrame(anim);
+          else {
+            // clear but leave subtle things; then proceed with messages
+            ctx.clearRect(0, 0, w, h);
+            runMessagesAndPuzzles();
+          }
+        }
+        requestAnimationFrame(anim);
+      }
+      function drawEye(ctx, x, y, alpha) {
+        ctx.beginPath(); ctx.ellipse(x, y, 70, 44, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(40,40,40,' + (0.98 * alpha) + ')'; ctx.fill();
+        ctx.beginPath(); ctx.ellipse(x, y, 28, 28, 0, 0, Math.PI * 2); const g = ctx.createRadialGradient(x - 6, y - 6, 2, x, y, 40); g.addColorStop(0, 'rgba(255,255,255,0.7)'); g.addColorStop(0.2, 'rgba(30,110,30,0.95)'); g.addColorStop(1, 'rgba(0,0,0,0.95)'); ctx.fillStyle = g; ctx.fill();
+        ctx.beginPath(); ctx.ellipse(x, y, 12, 18, 0, 0, Math.PI * 2); ctx.fillStyle = '#000'; ctx.fill();
+        ctx.beginPath(); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.ellipse(x - 10, y - 12, 8, 4, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      function drawFangs(ctx, cx, base, alpha) {
+        const fangCount = 2 + Math.floor(Math.random() * 3);
+        ctx.fillStyle = 'rgba(240,240,240,' + (0.95 * alpha) + ')';
+        for (let i = 0; i < fangCount; i++) {
+          const fx = cx - 100 + i * (200 / (Math.max(1, fangCount - 1)));
+          const fy = base + Math.random() * 20;
+          const len = 120 + Math.random() * 160;
+          ctx.beginPath();
+          ctx.moveTo(fx - 30 * (0.6 + Math.random() * 0.6), fy - 18);
+          ctx.lineTo(fx + 30 * (0.6 + Math.random() * 0.6), fy - 18);
+          ctx.lineTo(fx + (Math.random() * 30 - 15), fy + len);
+          ctx.closePath();
+          ctx.fill();
+          // blood streak
+          ctx.beginPath(); ctx.moveTo(fx + (Math.random() * 10 - 5), fy - 12); ctx.quadraticCurveTo(fx + (Math.random() * 20 - 10), fy + 30, fx + (Math.random() * 20 - 10), fy + 60);
+          ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(120,6,6,0.95)'; ctx.stroke();
+        }
+      }
+
+      // run messages + then open Morse panel
+      async function runMessagesAndPuzzles() {
+        // sequence of bloody messages
+        const messages = ["ОНО СМОТРИТ", "ОНО ЗНАЕТ, ГДЕ ТЫ", "СКОРО"];
+        for (let i = 0; i < messages.length; i++) {
+          showDOMMessage(messages[i], i);
+          await wait(1200);
+          condenseToBlood(messages[i]);
+          await wait(900);
+          hideDOMMessage(i);
+          await wait(300);
+        }
+        // hand slap
+        await wait(400);
+        playHandSlap();
+        // after the theatrics open Morse panel
+        await wait(1200);
+        openPanel(panelMorse);
+      }
+
+      // DOM message (for crisp)
+      const domMsgEls = [];
+      function showDOMMessage(txt, idx) {
+        const el = document.createElement('div');
+        el.className = 'msg';
+        el.style.top = (innerHeight * 0.18 + idx * 60) + 'px';
+        el.style.fontSize = Math.max(28, Math.floor(innerWidth * 0.06)) + 'px';
+        el.textContent = txt;
+        uiLayer.appendChild(el);
+        domMsgEls[idx] = el;
+      }
+      function hideDOMMessage(idx) {
+        const el = domMsgEls[idx];
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+        domMsgEls[idx] = null;
+      }
+
+      // condensation -> spread into blood (visual)
+      function condenseToBlood(text) {
+        // create text mask on metaCanvas then spawn particles at those pixels, then colorize via renderBlood
+        const pts = createTextPoints(text, Math.max(48, Math.floor(innerWidth * 0.06)));
+        assignMsgTargets(pts);
+        // then spawn a swarm of blood particles to "wash" it
+        spawnBlood(innerWidth * 0.5 + (Math.random() - 0.5) * 200, innerHeight * 0.45 + (Math.random() - 0.5) * 120, 80, 2.2);
+        // slightly increase effects
+        scanlines.style.opacity = Math.min(0.8, parseFloat(scanlines.style.opacity || '0') + 0.15);
+      }
+
+      // create text points (sampling metaCanvas)
+      function createTextPoints(text, fontSize) {
+        const w = metaCanvas.width / DPR(), h = metaCanvas.height / DPR();
+        metactx.clearRect(0, 0, w, h);
+        metactx.fillStyle = 'white';
+        metactx.textAlign = 'center';
+        metactx.font = `bold ${fontSize}px Impact, 'Arial Black', sans-serif`;
+        metactx.fillText(text, w / 2, h * 0.45);
+        const img = metactx.getImageData(0, 0, w, h).data;
+        const pts = [];
+        const step = Math.max(4, Math.floor(fontSize / 8));
+        for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
+          const a = img[(y * w + x) * 4 + 3];
+          if (a > 60) pts.push({ x: x, y: y });
+        }
+        return pts;
+      }
+      function assignMsgTargets(points) {
+        ensureMsgParticles(points.length);
+        for (let i = 0; i < points.length; i++) {
+          const p = msgParticles[i];
+          p.tx = points[i].x; p.ty = points[i].y; p.active = true; p.vx = (Math.random() - 0.5) * 2; p.vy = -3 - Math.random() * 2;
+          // map coords to screen scale if needed (we keep canvases same transform)
+          p.tx = p.tx; p.ty = p.ty;
+        }
+        for (let i = points.length; i < msgParticles.length; i++) msgParticles[i].active = false;
+      }
+
+      // blood physics: spawn / update / render
+      function spawnBlood(x, y, count = 12, force = 1.6) {
+        for (let i = 0; i < count; i++) {
+          if ((msgParticles.length + bloodParticles.length) >= MAX_PARTS) break;
+          const ang = Math.random() * Math.PI * 2;
+          const speed = (0.4 + Math.random() * 1.4) * force;
+          bloodParticles.push({
+            x: x + (Math.random() - 0.5) * 8,
+            y: y + (Math.random() - 0.5) * 8,
+            vx: Math.cos(ang) * speed + (Math.random() - 0.5) * 2,
+            vy: Math.sin(ang) * speed + (Math.random() - 0.5) * 2 - 0.3 * force,
+            r: 6 + Math.random() * 18,
+            life: 1,
+            trail: []
+          });
+        }
+      }
+      function updateBlood(dt) {
+        for (let i = bloodParticles.length - 1; i >= 0; i--) {
+          const p = bloodParticles[i];
+          p.vy += 0.06 * dt;
+          p.vx *= 0.995; p.vy *= 0.995;
+          p.x += p.vx * dt; p.y += p.vy * dt;
+          p.trail.push({ x: p.x, y: p.y, r: p.r }); if (p.trail.length > 8) p.trail.shift();
+          p.life -= 0.0025 * dt;
+          const floorY = innerHeight * 0.9;
+          if (p.y > floorY) { p.vx *= 0.6; p.vy *= -0.25; p.y = floorY - Math.random() * 6; p.r *= 0.96; }
+          if (p.life <= 0 || p.r < 0.6) bloodParticles.splice(i, 1);
+        }
+      }
+      function renderBlood() {
+        const w = metaCanvas.width / DPR(), h = metaCanvas.height / DPR();
+        metactx.clearRect(0, 0, w, h);
+        for (const p of bloodParticles) {
+          const R = p.r * (0.9 + Math.random() * 0.2);
+          const g = metactx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R * 2.0);
+          g.addColorStop(0, 'rgba(255,255,255,0.95)');
+          g.addColorStop(0.6, 'rgba(200,200,200,0.4)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          metactx.fillStyle = g; metactx.beginPath(); metactx.arc(p.x, p.y, R, 0, Math.PI * 2); metactx.fill();
+        }
+        // add msg particles too
+        for (const p of msgParticles) { if (p.active) { metactx.beginPath(); metactx.fillStyle = 'rgba(255,255,255,0.92)'; metactx.arc(p.x, p.y, Math.max(1, p.r * 0.45), 0, Math.PI * 2); metactx.fill(); } }
+
+        // colorize to bloodCanvas
+        bctx.clearRect(0, 0, innerWidth, innerHeight);
+        try {
+          bctx.save(); bctx.filter = 'blur(10px)'; bctx.drawImage(metaCanvas, 0, 0, innerWidth, innerHeight); bctx.restore();
+          bctx.save(); bctx.globalCompositeOperation = 'source-in'; bctx.fillStyle = 'rgba(140,8,8,0.98)'; bctx.fillRect(0, 0, innerWidth, innerHeight); bctx.restore();
+          for (const p of bloodParticles) { bctx.beginPath(); bctx.fillStyle = `rgba(255,160,160,${0.06 * p.life})`; bctx.ellipse(p.x - p.r * 0.35, p.y - p.r * 0.6, p.r * 0.64, p.r * 0.34, 0, 0, Math.PI * 2); bctx.fill(); }
+        } catch (e) {
+          bctx.clearRect(0, 0, innerWidth, innerHeight);
+          for (const p of bloodParticles) { bctx.beginPath(); bctx.fillStyle = 'rgba(140,8,8,0.95)'; bctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); bctx.fill(); }
+        }
+      }
+
+      // msg particles movement
+      function updateMsgParticles(dt) {
+        for (const p of msgParticles) {
+          if (!p.active) continue;
+          const ax = (p.tx - p.x) * 0.06;
+          const ay = (p.ty - p.y) * 0.06 + 0.12;
+          p.vx = p.vx * 0.88 + ax * dt; p.vy = p.vy * 0.88 + ay * dt;
+          p.vx += (Math.random() - 0.5) * 0.1; p.vy += (Math.random() - 0.5) * 0.1;
+          p.x += p.vx * dt; p.y += p.vy * dt;
+        }
+      }
+
+      // smears
+      const smears = [];
+      function addSmear(x, y, vx, vy) { smears.push({ x, y, vx: vx * 0.6, vy: vy * 0.6, life: 1, w: 28 + (Math.abs(vx) + Math.abs(vy)) * 0.8 }); if (smears.length > 36) smears.shift(); }
+      function updateSmears(dt) {
+        for (let i = smears.length - 1; i >= 0; i--) {
+          const s = smears[i]; s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 0.92; s.vy *= 0.92; s.life -= 0.007 * dt; if (s.life <= 0) smears.splice(i, 1);
+        }
+      }
+      function renderSmears() {
+        stx.clearRect(0, 0, innerWidth, innerHeight); stx.save(); stx.globalCompositeOperation = 'source-over';
+        for (const s of smears) {
+          stx.beginPath(); stx.fillStyle = `rgba(30,0,0,${0.55 * s.life})`; stx.ellipse(s.x, s.y, s.w * 0.6 * s.life, s.w * 1.0 * s.life, 0, 0, Math.PI * 2); stx.fill();
+          stx.beginPath(); stx.fillStyle = `rgba(110,10,10,${0.12 * s.life})`; stx.ellipse(s.x - Math.cos(0.4) * s.w * 0.1, s.y - Math.sin(0.4) * s.w * 0.2, s.w * 0.8 * s.life, s.w * 0.28 * s.life, 0, 0, Math.PI * 2); stx.fill();
+        }
+        stx.restore();
+      }
+
+      // noise background
+      function drawNoise() {
+        const w = noiseCanvas.width, h = noiseCanvas.height;
+        const img = nctx.createImageData(w, h);
+        for (let i = 0; i < img.data.length; i += 4) { const v = (Math.random() * 44) | 0; img.data[i] = img.data[i + 1] = img.data[i + 2] = 8 + v; img.data[i + 3] = 12; }
+        nctx.putImageData(img, 0, 0);
+      }
+      function drawNoiseOnce() { drawNoise(); }
+
+      // FX: chromatic ghost / fog
+      function drawFX() {
+        const w = innerWidth, h = innerHeight;
+        fctx.clearRect(0, 0, w, h);
+        try {
+          fctx.globalCompositeOperation = 'lighter'; fctx.globalAlpha = 0.22; fctx.drawImage(monsterCanvas, 6, 0);
+          fctx.globalAlpha = 0.22; fctx.globalCompositeOperation = 'screen'; fctx.drawImage(monsterCanvas, -6, 0);
+          fctx.globalCompositeOperation = 'source-over'; fctx.globalAlpha = 1;
+        } catch (e) { }
+        const cx = innerWidth / 2, cy = innerHeight * 0.45, r = 60 + Math.sin(Date.now() * 0.004) * 8 + 80;
+        const fog = fctx.createRadialGradient(cx, cy, 10, cx, cy, r); fog.addColorStop(0, 'rgba(220,220,220,0.03)'); fog.addColorStop(1, 'rgba(220,220,220,0)');
+        fctx.fillStyle = fog; fctx.fillRect(0, 0, innerWidth, innerHeight);
+      }
+
+      // ---------- Hand slap ----------
+      function playHandSlap() {
+        whooshPlay();
+        handOverlay.style.transition = 'none'; handOverlay.style.opacity = '1'; handOverlay.style.transform = 'translateX(0) rotate(-6deg) scale(1.02)';
+        handOverlay.style.right = '5%'; handOverlay.style.top = '8%';
+        setTimeout(() => {
+          handOverlay.style.transition = 'transform 260ms cubic-bezier(.2,.9,.2,1), opacity 220ms';
+          handOverlay.style.transform = 'translateY(30vh) translateX(-6vw) rotate(4deg) scale(1.0)';
+          createHandSmear();
+          try { finalScream.currentTime = 0; finalScream.play().catch(() => { }); } catch (e) { }
+          setTimeout(() => handOverlay.style.opacity = '0', 1000);
+        }, 260);
+      }
+      function createHandSmear() {
+        const sx = innerWidth * 0.55, sy = innerHeight * 0.18;
+        for (let i = 0; i < 18; i++) { spawnBlood(sx + Math.random() * 120, sy + i * 24, 6, 1.4 + Math.random() * 0.8); addSmear(sx + Math.random() * 120, sy + i * 24, (Math.random() - 0.5) * 6, 6 + Math.random() * 8); }
+      }
+      function whooshPlay() { try { document.getElementById('whoosh').currentTime = 0; document.getElementById('whoosh').play().catch(() => { }); } catch (e) { } }
+
+      // main render loop
+      let lastT = performance.now();
+      function loop(now) {
+        const dt = Math.max(1, Math.min(4, (now - lastT) / 16.666)); lastT = now;
+        updateMsgParticles(dt); updateBlood(dt); updateSmears(dt);
+        renderBlood(); renderSmears(); drawFX();
+        requestAnimationFrame(loop);
+      }
+
+      // ---------- Panels flow & puzzle logic ----------
+      function openPanel(panel) {
+        [panelMorse, panelPuzzle, panelVoice, panelFinal].forEach(p => { if (p !== panel) p.style.display = 'none'; });
+        panel.style.display = 'block';
+        // focus first input inside if any
+        panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      function closePanel(panel) { panel.style.display = 'none'; }
+
+      // MORSE puzzle handlers
+      document.getElementById('morsePlay').addEventListener('click', () => { try { morseAudio.currentTime = 0; morseAudio.play().catch(() => { }); } catch (e) { } });
+      morseCheck.addEventListener('click', () => {
+        const v = (morseInput.value || '').trim().toLowerCase();
+        if (!v) { alert('Введи слово.'); return; }
+        if (v === morseSecret.toLowerCase()) {
+          morseUnlocked = true;
+          alert('Правильно — Морзе расшифровано. Открывается следующий этап.');
+          closePanel(panelMorse);
+          openPanel(panelPuzzle);
+          initPuzzle(); // prepare tile puzzle
+        } else {
+          alert('Неверно. Прислушайся внимательнее.');
+        }
+      });
+
+      // surrender option in Morse: go to next level
+      morseSurrender.addEventListener('click', () => {
+        if (confirm('Ты действительно хочешь позорно сдаться? Перейдешь к следующему уровню.')) {
+          closePanel(panelMorse);
+          openPanel(panelPuzzle);
+          initPuzzle();
+        }
+      });
+
+      // Puzzle (20 tiles: 5 cols x 4 rows)
+      let tiles = []; // canvases
+      let tileOrder = [];
+      function initPuzzle() {
+        puzzleBoard.innerHTML = '';
+        tiles = [];
+        tileOrder = [];
+        const COLS = 5, ROWS = 4;
+        const img = new Image();
+        img.src = 'images/puzzle_source.jpg';
+        img.onload = () => {
+          const tw = Math.floor(img.width / COLS), th = Math.floor(img.height / ROWS);
+          for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+              const cv = document.createElement('canvas');
+              cv.width = tw; cv.height = th;
+              cv.className = 'tile';
+              cv.dataset.index = (r * COLS + c);
+              const ctx = cv.getContext('2d');
+              ctx.drawImage(img, c * tw, r * th, tw, th, 0, 0, tw, th);
+              cv.draggable = true;
+              cv.addEventListener('dragstart', onDragStart);
+              cv.addEventListener('dragend', onDragEnd);
+              tiles.push(cv);
+            }
+          }
+          tileOrder = tiles.map((_, i) => i);
+          // shuffle order
+          for (let i = tileOrder.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [tileOrder[i], tileOrder[j]] = [tileOrder[j], tileOrder[i]];
+          }
+          // append wrappers with drop handlers
+          for (const idx of tileOrder) {
+            const wrapper = document.createElement('div');
+            wrapper.style.position = 'relative'; wrapper.style.overflow = 'hidden';
+            wrapper.appendChild(tiles[idx]);
+            wrapper.className = 'tile-wrapper';
+            wrapper.addEventListener('dragover', onDragOver);
+            wrapper.addEventListener('drop', onDrop);
+            puzzleBoard.appendChild(wrapper);
+          }
+        };
+        img.onerror = () => {
+          // fallback colored blocks
+          for (let i = 0; i < 20; i++) {
+            const el = document.createElement('div');
+            el.className = 'tile'; el.style.background = `hsl(${i * 18},30%,12%)`;
+            puzzleBoard.appendChild(el);
+          }
+        };
+      }
+      let dragSrc = null;
+      function onDragStart(e) { dragSrc = e.target; e.dataTransfer.setData('text/plain', e.target.dataset.index); e.target.style.opacity = 0.6; }
+      function onDragEnd(e) { e.target.style.opacity = ''; }
+      function onDragOver(e) { e.preventDefault(); }
+      function onDrop(e) {
+        e.preventDefault();
+        const srcIdx = e.dataTransfer.getData('text/plain');
+        const srcEl = document.querySelector(`canvas[data-index="${srcIdx}"]`);
+        if (!srcEl) return;
+        const destWrapper = e.currentTarget;
+        const srcParent = srcEl.parentNode;
+        const destChild = destWrapper.firstElementChild;
+        if (destChild === srcEl) return;
+        if (srcParent && destChild) {
+          srcParent.removeChild(srcEl);
+          destWrapper.removeChild(destChild);
+          srcParent.appendChild(destChild);
+          destWrapper.appendChild(srcEl);
+        } else {
+          if (srcParent) srcParent.removeChild(srcEl);
+          destWrapper.appendChild(srcEl);
+        }
+      }
+      puzzleCheck.addEventListener('click', () => {
+        const wrappers = Array.from(puzzleBoard.children);
+        let correct = true;
+        for (let i = 0; i < wrappers.length; i++) {
+          const child = wrappers[i].firstElementChild;
+          if (!child) { correct = false; break; }
+          if (parseInt(child.dataset.index, 10) !== i) { correct = false; break; }
+        }
+        if (correct) {
+          imageUnlocked = true;
+          alert('Картинка собрана — получена подсказка для финала.');
+          closePanel(panelPuzzle);
+          // open voice panel
+          openPanel(panelVoice);
+        } else {
+          alert('Похоже, не всё правильно. Продолжай собирать.');
+        }
+      });
+
+      // surrender option in Puzzle: go to next level
+      puzzleSurrender.addEventListener('click', () => {
+        if (confirm('Ты действительно хочешь позорно сдаться? Перейдешь к следующему уровню.')) {
+          closePanel(panelPuzzle);
+          openPanel(panelVoice);
+        }
+      });
+
+      // Voice puzzle (WebSpeech API)
+      let recognition = null;
+      function initSpeechRec() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+        if (!SR) { voiceResult.textContent = 'Распознавание речи не поддерживается в этом браузере.'; startListen.disabled = true; return; }
+        try {
+          recognition = new SR();
+          recognition.continuous = true; recognition.interimResults = false; recognition.lang = 'ru-RU';
+          recognition.onresult = (ev) => {
+            const txt = ev.results[ev.resultIndex][0].transcript.trim().toLowerCase();
+            voiceResult.textContent = 'Распознано: ' + txt;
+            // accept any non-empty phrase as success
+            if (txt.length > 0) {
+              voiceUnlocked = true;
+              voiceToken = txt.replace(/\s+/g, '').slice(0, 3);
+              // stop and continue to final
+              try { recognition.stop(); } catch (e) { }
+              openPanel(panelFinal);
+            }
+          };
+          recognition.onerror = (e) => { console.warn('sr err', e); };
+          recognition.onend = () => { };
+        } catch (e) { console.warn('sr init fail', e); recognition = null; startListen.disabled = true; }
+      }
+      startListen.addEventListener('click', () => {
+        if (!recognition) { initSpeechRec(); if (!recognition) return; }
+        try { recognition.start(); startListen.disabled = true; stopListen.disabled = false; voiceResult.textContent = 'Слушаю...'; } catch (e) { console.warn(e); }
+      });
+      stopListen.addEventListener('click', () => { try { recognition.stop(); startListen.disabled = false; stopListen.disabled = true; voiceResult.textContent = 'Остановлено'; } catch (e) { } });
+
+      // surrender option in Voice: go to next level
+      voiceSurrender.addEventListener('click', () => {
+        if (confirm('Ты действительно хочешь позорно сдаться? Перейдешь к следующему уровню.')) {
+          closePanel(panelVoice);
+          openPanel(panelFinal);
+        }
+      });
+
+      // Final keypad
+      let typed = '';
+      function updateFinalDisplay() { finalDisplay.textContent = typed.padEnd(6, '_').split('').join(' '); }
+      updateFinalDisplay();
+      keypadKeys.forEach(k => k.addEventListener('click', () => {
+        const t = k.textContent.trim();
+        if (t === 'OK') {
+          const secret = computeFinalSecret();
+          if (typed === secret) {
+            alert('Код верен — QR активирован. Беги!');
+            revealQR('final_code');
+            closePanel(panelFinal);
+          } else {
+            alert('Неверный код.');
+          }
+          typed = ''; updateFinalDisplay();
+        } else if (t === '←') {
+          typed = typed.slice(0, -1); updateFinalDisplay();
+        } else {
+          if (typed.length < 6) typed += t;
+          updateFinalDisplay();
+        }
+      }));
+
+      // reveal QR (central function)
+      function revealQR(reason = 'unknown') {
+        qrWrap.style.opacity = '1'; qrWrap.style.pointerEvents = 'auto';
+        console.log('QR revealed by', reason);
+        // strong final audio & effects
+        try { rumbleLoop.volume = 0.8; } catch (e) { }
+        try { finalScream.currentTime = 0; finalScream.play().catch(() => { }); } catch (e) { }
+        crack.style.opacity = 1; scanlines.style.opacity = 0.9;
+      }
+
+      // run initial call to create some atmosphere before puzzles
+      // small initial blood
+      setTimeout(() => spawnBlood(innerWidth * 0.52, innerHeight * 0.6, 8, 0.9), 1000);
+
+      // start render loop
+      fitAll();
+      drawNoiseOnce();
+      lastT = performance.now();
+      requestAnimationFrame(loop);
+
+      // Help functionality
+      helpButton.addEventListener('click', () => {
+        helpModal.style.display = 'flex';
+      });
+
+      closeHelp.addEventListener('click', () => {
+        helpModal.style.display = 'none';
+      });
+
+      helpModal.addEventListener('click', (e) => {
+        if (e.target === helpModal) {
+          helpModal.style.display = 'none';
+        }
+      });
+
+      // Hand SVG fallback (used for overlay)
+      function handSVG() {
+        return `<svg viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+        <g><path d="M150 80 C120 90 95 160 110 210 C70 240 60 290 80 360 C48 380 40 430 60 480 C90 540 140 580 210 600 C260 615 306 605 336 575 C370 540 414 502 430 460 C446 418 435 360 388 320 C430 300 450 250 436 200 C420 150 380 120 350 104 C320 88 200 70 150 80 Z" fill="#110000"/></g>
+      </svg>`;
+      }
+
+      // page unload cleanup
+      window.addEventListener('pagehide', () => { try { [womanScream, footstepLoop, rumbleLoop, heartbeatLoop, finalScream].forEach(a => { a.pause(); }); } catch (e) { } });
+
+    })();
+  </script>
+</body>
+</html>
